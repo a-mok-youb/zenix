@@ -13,12 +13,12 @@ Add zenix.zig as a dependency in your build.zig.zon:
 ```
  In your build.zig, add the zenix module as a dependency to your program:
 ```bash
-  const httpz = b.dependency("zenix", .{
+ const zenix = b.dependency("zenix", .{
     .target = target,
     .optimize = optimize,
- });
+  });
 
-exe.root_module.addImport("zenix", httpz.module("zenix"));
+  exe.root_module.addImport("zenix", zenix.module("zenix"));
 ```
 
 The library tracks Zig master. If you're using a specific version of Zig, use the appropriate branch.
