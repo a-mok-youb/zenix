@@ -18,7 +18,7 @@ Add zenix.zig as a dependency in your build.zig.zon:
     .optimize = optimize,
  });
 
-exe.root_module.addImport("httpz", httpz.module("zenix"));
+exe.root_module.addImport("zenix", httpz.module("zenix"));
 ```
 
 The library tracks Zig master. If you're using a specific version of Zig, use the appropriate branch.
