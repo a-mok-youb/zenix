@@ -7,14 +7,18 @@ High-performance web framework built with Zig.
 
 
 # Installation
-Add http.zig as a dependency in your build.zig.zon:
+Add zenix.zig as a dependency in your build.zig.zon:
+```bash
  zig fetch --save "git+https://github.com/karlseguin/http.zig#master"
- In your build.zig, add the httpz module as a dependency to your program:
-  const httpz = b.dependency("httpz", .{
+```
+ In your build.zig, add the zenix module as a dependency to your program:
+```bash
+  const httpz = b.dependency("zenix", .{
     .target = target,
     .optimize = optimize,
  });
 
-// the executable from your call to b.addExecutable(...)
-exe.root_module.addImport("httpz", httpz.module("httpz"));
+exe.root_module.addImport("httpz", httpz.module("zenix"));
+```
+
 The library tracks Zig master. If you're using a specific version of Zig, use the appropriate branch.
