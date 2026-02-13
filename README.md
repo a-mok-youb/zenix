@@ -9,7 +9,7 @@ High-performance web framework built with Zig.
 # Installation
 Add zenix.zig as a dependency in your build.zig.zon:
 ```bash
- zig fetch --save "git+https://github.com/karlseguin/zenix.zig#master"
+ zig fetch --save "git+https://github.com/a-mok-youb/zenix.zig#master"
 ```
  In your build.zig, add the zenix module as a dependency to your program:
 ```bash
