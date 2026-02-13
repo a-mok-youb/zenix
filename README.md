@@ -22,3 +22,7 @@ exe.root_module.addImport("httpz", httpz.module("zenix"));
 ```
 
 The library tracks Zig master. If you're using a specific version of Zig, use the appropriate branch.
+
+## License
+
+[MIT](https://choosealicense.com/licenses/mit/)
