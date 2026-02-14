@@ -8,7 +8,7 @@ pub fn html(
     layoutPath: []const u8,
     title: []const u8,
     replacements: []const Replacement,
-) ![]u8 {
+) ![]const u8 {
     const pageContent = try render.loadFile(pagePath);
     const layoutContent = try render.loadFile(layoutPath);
 
@@ -28,7 +28,7 @@ pub fn html(
     return result;
 }
 
-pub fn htmlError(status: u16, errorPagePath: []const u8, layoutPath: []const u8, replacements: []const Replacement) ![]u8 {
+pub fn htmlError(status: u16, errorPagePath: []const u8, layoutPath: []const u8, replacements: []const Replacement) ![]const u8 {
     const status_str = try std.fmt.allocPrint(std.heap.page_allocator, "{d}", .{status});
     defer std.heap.page_allocator.free(status_str);
     const body = try html(errorPagePath, layoutPath, status_str, replacements);
