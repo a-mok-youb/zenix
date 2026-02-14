@@ -32,7 +32,7 @@ pub fn renderTemplate(template: []const u8, replacements: []const Replacement) !
 //_______________________________________________________________________________________________________________
 
 //____________ RENDERING COMPONENTS _____________________________________________________________________________
-pub fn rendercomponent(input: []const u8) ![]u8 {
+pub fn rendercomponent(input: []const u8) ![]const u8 {
     var result = input;
 
     while (true) {
