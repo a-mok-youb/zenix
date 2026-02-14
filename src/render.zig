@@ -16,7 +16,7 @@ const Replacement = @import("structs.zig").Replacement;
 
 //____________ RENDERING TEMPLATE _______________________________________________________________________________
 
-    pub fn renderTemplate(template: []const u8, replacements: []const Replacement) ![]u8 {
+    pub fn renderTemplate(template: []const u8, replacements: []const Replacement) ![]const u8 {
         var result = template;
 
         for (replacements) |r| {
