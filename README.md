@@ -1,4 +1,8 @@
 # Zenix
+
+⚠️ This project is under active development and not ready for production use.
+
+
 High-performance web framework built with Zig.
 - [ ] SSR support
 - [ ] Template engine
