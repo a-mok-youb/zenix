@@ -33,7 +33,7 @@ pub fn Error(status: u16, errorPagePath: []const u8, replacements: []const Repla
 
     const page_path = try std.fmt.allocPrint(std.heap.page_allocator, "view/pages/{s}.html", .{errorPagePath});
     defer std.heap.page_allocator.free(page_path);
-
+    //
     const layout = "main_layout";
     const layout_path = try std.fmt.allocPrint(std.heap.page_allocator, "view/layouts/{s}.html", .{layout});
     defer std.heap.page_allocator.free(layout_path);
