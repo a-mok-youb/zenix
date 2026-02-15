@@ -1,5 +1,3 @@
-
-
 const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
@@ -11,7 +9,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-     {
+    {
         const options = b.addOptions();
         zenix_module.addOptions("build", options);
     }

@@ -1,5 +1,4 @@
 const std = @import("std");
-
 const Replacement = @import("structs.zig").Replacement;
 
 //____________ LOADING FILES ___________________________________________________________________________________

@@ -32,5 +32,3 @@ The library tracks Zig master. If you're using a specific version of Zig, use th
 
 [MIT](https://choosealicense.com/licenses/mit/)
 =======
-# zenix
->>>>>>> 7146dce1b55327ef894260dcc6335754de040090
