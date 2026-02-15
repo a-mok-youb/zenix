@@ -31,4 +31,3 @@ The library tracks Zig master. If you're using a specific version of Zig, use th
 ## License
 
 [MIT](https://choosealicense.com/licenses/mit/)
-=======
