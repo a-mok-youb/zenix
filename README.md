@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Zenix
 
 ⚠️ This project is under active development and not ready for production use.
