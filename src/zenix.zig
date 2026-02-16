@@ -2,41 +2,68 @@ const std = @import("std");
 const Replacement = @import("structs.zig").Replacement;
 const render = @import("render.zig");
 
-pub fn Html(
-    pagePath: []const u8,
-    layoutPath: []const u8,
-    title: []const u8,
-    replacements: []const Replacement,
-) ![]const u8 {
-    const pageContent = try render.loadFile(pagePath);
-    const layoutContent = try render.loadFile(layoutPath);
+pub const Zenix = struct {
+    allocator: std.mem.Allocator,
 
-    var allReplacements = try std.ArrayList(Replacement).initCapacity(std.heap.page_allocator, 0);
-    defer allReplacements.deinit(std.heap.page_allocator);
+    const PAGE_DIR = "view/pages/";
+    const LAYOUT_DIR = "view/layouts/";
+    const LAYOUT = "main_layout";
 
-    try allReplacements.append(std.heap.page_allocator, .{ .key = "{{title}}", .value = title });
-    try allReplacements.append(std.heap.page_allocator, .{ .key = "{{content}}", .value = pageContent });
+    const PAGE_PATH = PAGE_DIR ++ "{s}.html";
+    const LAYOUT_PATH = LAYOUT_DIR ++ "{s}.html";
 
-    for (replacements) |r| {
-        try allReplacements.append(std.heap.page_allocator, r);
+    pub const Page = struct {
+        pagePath: []const u8,
+        title: []const u8,
+        replacements: []const Replacement,
+    };
+
+    pub const ErrorPage = struct {
+        status: u16,
+        errorPagePath: []const u8,
+        replacements: []const Replacement,
+    };
+
+    pub fn init(allocator: std.mem.Allocator) Zenix {
+        return .{ .allocator = allocator };
     }
-    const renderedPage = try render.renderTemplate(layoutContent, allReplacements.items);
-    var result = renderedPage;
 
-    result = try render.renderComponent(result);
-    return result;
-}
+    pub fn Html(self: *Zenix, page: Page) ![]const u8 {
+        const page_path = try std.fmt.allocPrint(self.allocator, PAGE_PATH, .{page.pagePath});
+        defer self.allocator.free(page_path);
 
-pub fn Error(status: u16, errorPagePath: []const u8, replacements: []const Replacement) ![]const u8 {
-    const status_str = try std.fmt.allocPrint(std.heap.page_allocator, "{d}", .{status});
-    defer std.heap.page_allocator.free(status_str);
+        const layout_path = try std.fmt.allocPrint(self.allocator, LAYOUT_PATH, .{LAYOUT});
+        defer self.allocator.free(layout_path);
 
-    const page_path = try std.fmt.allocPrint(std.heap.page_allocator, "view/pages/{s}.html", .{errorPagePath});
-    defer std.heap.page_allocator.free(page_path);
+        return try render.renderPage(self.allocator, page_path, layout_path, page.title, page.replacements);
+    }
 
-    const layout = "main_layout";
-    const layout_path = try std.fmt.allocPrint(std.heap.page_allocator, "view/layouts/{s}.html", .{layout});
-    defer std.heap.page_allocator.free(layout_path);
+    pub fn Error(self: *Zenix, errorPage: ErrorPage) ![]const u8 {
+        const status_str = try std.fmt.allocPrint(self.allocator, "{d}", .{errorPage.status});
+        defer self.allocator.free(status_str);
 
-    return try Html(page_path, layout_path, status_str, replacements);
-}
+        const page_path = try std.fmt.allocPrint(self.allocator, PAGE_PATH, .{errorPage.errorPagePath});
+        defer self.allocator.free(page_path);
+
+        const layout_path = try std.fmt.allocPrint(self.allocator, LAYOUT_PATH, .{LAYOUT});
+        defer self.allocator.free(layout_path);
+
+        return try render.renderPage(self.allocator, page_path, layout_path, status_str, errorPage.replacements);
+    }
+};
+
+//_____ how to use ____________________________________________________________________________________
+// In your main function or wherever you want to render a page, you can do something like this:
+
+//const zenix = @import("zenix.zig");
+// pub fn main() !void {
+//      zenix.init();
+//      defer zenix.deinit();
+//
+//      const replacements = [_]Replacement{
+//          .{ .key = "{{title}}", .value = "Welcome to Zenix!" },
+//          .{ .key = "{{content}}", .value = "This is a sample page rendered with Zenix." },
+//  };
+//  const html = try zenix.Html("home", "Home Page", replacements);
+//  std.debug.print("{s}\n", .{html});
+//}

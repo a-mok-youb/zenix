@@ -94,3 +94,35 @@ pub fn renderComponent(input: []const u8) ![]const u8 {
     return result;
 }
 //__________________________________________________________________________________________________________________
+
+//____________ RENDERING PAGES ____________________________________________________________________________________
+
+pub fn renderPage(
+    allocator: std.mem.Allocator,
+    pagePath: []const u8,
+    layoutPath: []const u8,
+    title: []const u8,
+    replacements: []const Replacement,
+) ![]const u8 {
+    const pageContent = try loadFile(pagePath);
+    const layoutContent = try loadFile(layoutPath);
+
+    var allReplacements = try std.ArrayList(Replacement).initCapacity(allocator, 0);
+    defer allReplacements.deinit(allocator);
+
+    // استخدم الـ allocator الصحيح
+    try allReplacements.append(allocator, .{ .key = "{{title}}", .value = title });
+    try allReplacements.append(allocator, .{ .key = "{{content}}", .value = pageContent });
+
+    for (replacements) |r| {
+        try allReplacements.append(allocator, r);
+    }
+
+    const renderedPage = try renderTemplate(layoutContent, allReplacements.items);
+    var result = renderedPage;
+
+    result = try renderComponent(result);
+    return result;
+}
+
+//__________________________________________________________________________________________________________________

@@ -1,6 +1,6 @@
 .{
     .name = .zenix,
-    .version = "0.0.1",
+    .version = "0.0.2",
 
     .fingerprint = 0xd110c78857377942,
     .minimum_zig_version = "0.15.1",
