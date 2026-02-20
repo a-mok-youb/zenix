@@ -1,128 +1,212 @@
 const std = @import("std");
-const Replacement = @import("structs.zig").Replacement;
+const structs = @import("structs.zig");
 
-//____________ LOADING FILES ___________________________________________________________________________________
-pub fn loadFile(path: []const u8) ![]u8 {
+const Paths = structs.Paths;
+const Data = structs.Data;
+
+////////////////////////////////////////////////////////////////
+// LOAD FILE
+////////////////////////////////////////////////////////////////
+
+pub fn loadFile(
+    allocator: std.mem.Allocator,
+    path: []const u8,
+) ![]const u8 {
     var file = try std.fs.cwd().openFile(path, .{ .mode = .read_only });
     defer file.close();
 
-    const file_size = try file.getEndPos();
-    const buffer = try std.heap.page_allocator.alloc(u8, file_size);
+    const size = try file.getEndPos();
+    const buffer = try allocator.alloc(u8, size);
+
     _ = try file.readAll(buffer);
     return buffer;
 }
-//_______________________________________________________________________________________________________________
 
-//____________ RENDERING TEMPLATE _______________________________________________________________________________
+////////////////////////////////////////////////////////////////
+// RENDER TEMPLATE
+////////////////////////////////////////////////////////////////
 
-pub fn renderTemplate(template: []const u8, replacements: []const Replacement) ![]const u8 {
+pub fn renderTemplate(
+    allocator: std.mem.Allocator,
+    template: []const u8,
+    data: []const Data,
+) ![]const u8 {
     var result = template;
 
-    for (replacements) |r| {
-        const replaced = try std.mem.replaceOwned(u8, std.heap.page_allocator, result, r.key, r.value);
+    for (data) |r| {
+        const replaced = try std.mem.replaceOwned(
+            u8,
+            allocator,
+            result,
+            r.key,
+            r.value,
+        );
+
         if (result.ptr != template.ptr) {
-            std.heap.page_allocator.free(result);
+            allocator.free(result);
         }
+
         result = replaced;
+    }
+
+    if (result.ptr == template.ptr) {
+        return try allocator.dupe(u8, template);
     }
 
     return result;
 }
-//_______________________________________________________________________________________________________________
 
-//____________ RENDERING COMPONENTS _____________________________________________________________________________
-pub fn renderComponent(input: []const u8) ![]const u8 {
-    var result = input;
+////////////////////////////////////////////////////////////////
+// RENDER COMPONENT
+////////////////////////////////////////////////////////////////
+
+pub fn renderComponent(
+    allocator: std.mem.Allocator,
+    // componentPath: Paths.components,
+    input: []const u8,
+) ![]const u8 {
+    var result = try allocator.dupe(u8, input);
 
     while (true) {
         const start = std.mem.indexOf(u8, result, "<component:") orelse break;
-        const end = std.mem.indexOf(u8, result[start..], "/>") orelse break;
-        const comp_call = result[start .. start + end + 2];
+        const end_rel = std.mem.indexOf(u8, result[start..], "/>") orelse break;
+        const end = start + end_rel + 2;
+
+        const comp_call = result[start..end];
 
         const name_start = start + 11;
-        const space_pos = std.mem.indexOfScalarPos(u8, result, name_start, ' ') orelse (start + end);
+        const space_pos = std.mem.indexOfScalarPos(u8, result, name_start, ' ') orelse (start + end_rel);
+
+        //const component_Path = try std.fmt.allocPrint(allocator, "{s}/{s}.html", .{ componentPath, result[name_start..space_pos] });
+        //defer allocator.free(component_Path);
         const comp_name = result[name_start..space_pos];
 
-        const comp_path = try std.fmt.allocPrint(std.heap.page_allocator, "view/components/{s}.html", .{comp_name});
-        defer std.heap.page_allocator.free(comp_path);
-        const comp_template = loadFile(comp_path) catch "<div>Component missing</div>";
+        const comp_path = try std.fmt.allocPrint(
+            allocator,
+            "src/components/{s}.html",
+            .{comp_name},
+        );
+        defer allocator.free(comp_path);
 
-        var comp_replacements = try std.ArrayList(Replacement).initCapacity(std.heap.page_allocator, 0);
+        const comp_template =
+            loadFile(allocator, comp_path) catch try allocator.dupe(u8, "<div>Component missing</div>");
+
+        var comp_replacements =
+            try std.ArrayList(Data).initCapacity(allocator, 0);
         defer {
-            for (comp_replacements.items) |r| std.heap.page_allocator.free(r.key);
-            comp_replacements.deinit(std.heap.page_allocator);
+            for (comp_replacements.items) |r| {
+                allocator.free(r.key);
+            }
+            comp_replacements.deinit(allocator);
         }
 
-        const props_str = result[space_pos .. start + end];
+        // props
+        const props_str = result[space_pos .. start + end_rel];
         var pos: usize = 0;
+
         while (pos < props_str.len) {
-            // Skip whitespace
             while (pos < props_str.len and props_str[pos] == ' ') : (pos += 1) {}
+
             if (pos >= props_str.len) break;
 
-            // Find key=
             const key_start = pos;
             while (pos < props_str.len and props_str[pos] != '=') : (pos += 1) {}
+
             if (pos >= props_str.len) break;
 
             const key = props_str[key_start..pos];
-            pos += 1; // skip '='
+            pos += 1;
 
-            // Skip whitespace and opening quote
-            while (pos < props_str.len and (props_str[pos] == ' ' or props_str[pos] == '"')) : (pos += 1) {}
-            if (pos >= props_str.len) break;
+            while (pos < props_str.len and
+                (props_str[pos] == ' ' or props_str[pos] == '"')) : (pos += 1)
+            {}
 
             const val_start = pos;
-            // Find closing quote
+
             while (pos < props_str.len and props_str[pos] != '"') : (pos += 1) {}
+
             const val = props_str[val_start..pos];
 
-            if (pos < props_str.len) pos += 1; // skip closing quote
+            if (pos < props_str.len) pos += 1;
 
-            const full_key = try std.fmt.allocPrint(std.heap.page_allocator, "{{{{{s}}}}}", .{key});
-            try comp_replacements.append(std.heap.page_allocator, .{ .key = full_key, .value = val });
+            const full_key =
+                try std.fmt.allocPrint(allocator, "{{{{{s}}}}}", .{key});
+
+            try comp_replacements.append(
+                allocator,
+                .{ .key = full_key, .value = val },
+            );
         }
 
-        const rendered_comp = try renderTemplate(comp_template, comp_replacements.items);
-        const replaced = try std.mem.replaceOwned(u8, std.heap.page_allocator, result, comp_call, rendered_comp);
-        if (result.ptr != input.ptr) {
-            std.heap.page_allocator.free(result);
-        }
+        const rendered_comp =
+            try renderTemplate(
+                allocator,
+                comp_template,
+                comp_replacements.items,
+            );
+
+        allocator.free(comp_template);
+
+        const replaced =
+            try std.mem.replaceOwned(
+                u8,
+                allocator,
+                result,
+                comp_call,
+                rendered_comp,
+            );
+
+        allocator.free(rendered_comp);
+        allocator.free(result);
+
         result = replaced;
     }
 
     return result;
 }
-//__________________________________________________________________________________________________________________
 
-//____________ RENDERING PAGES ____________________________________________________________________________________
+////////////////////////////////////////////////////////////////
+// RENDER PAGE
+////////////////////////////////////////////////////////////////
 
 pub fn renderPage(
     allocator: std.mem.Allocator,
     pagePath: []const u8,
     layoutPath: []const u8,
     title: []const u8,
-    replacements: []const Replacement,
+    data: []const Data,
 ) ![]const u8 {
-    const pageContent = try loadFile(pagePath);
-    const layoutContent = try loadFile(layoutPath);
+    const pageContent = try loadFile(allocator, pagePath);
+    defer allocator.free(pageContent);
 
-    var allReplacements = try std.ArrayList(Replacement).initCapacity(allocator, 0);
+    const layoutContent = try loadFile(allocator, layoutPath);
+    defer allocator.free(layoutContent);
+
+    var allReplacements =
+        try std.ArrayList(Data).initCapacity(allocator, 0);
     defer allReplacements.deinit(allocator);
 
-    // استخدم الـ allocator الصحيح
-    try allReplacements.append(allocator, .{ .key = "{{title}}", .value = title });
-    try allReplacements.append(allocator, .{ .key = "{{content}}", .value = pageContent });
+    try allReplacements.append(
+        allocator,
+        .{ .key = "{{title}}", .value = title },
+    );
 
-    for (replacements) |r| {
+    try allReplacements.append(
+        allocator,
+        .{ .key = "{{content}}", .value = pageContent },
+    );
+
+    for (data) |r| {
         try allReplacements.append(allocator, r);
     }
 
-    const renderedPage = try renderTemplate(layoutContent, allReplacements.items);
-    var result = renderedPage;
+    const rendered = try renderTemplate(
+        allocator,
+        layoutContent,
+        allReplacements.items,
+    );
 
-    result = try renderComponent(result);
-    return result;
+    defer allocator.free(rendered);
+
+    return try renderComponent(allocator, rendered);
 }
-
-//__________________________________________________________________________________________________________________
