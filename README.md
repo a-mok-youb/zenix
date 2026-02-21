@@ -24,17 +24,16 @@ zig fetch --save https://github.com/a-mok-youb/zenix/archive/refs/heads/main.tar
 The library tracks Zig master. If you're using a specific version of Zig, use the appropriate branch.
 
 add fille **zenx.config.zon** in your project folder
-> [!zenx.config.zon]
-
->```
-.{
-    .port = 8080,
-    .paths = .{
-        .pages = "src/pages",
-        .components = "src/components",
-        .layouts = "src/layouts",
-    },
-}
+> [!NOTE]
+>```bash
+>.{
+>    .port = 8080,
+>    .paths = .{
+>        .pages = "src/pages",
+>        .components = "src/components",
+>        .layouts = "src/layouts",
+>    },
+>}
 >```
 
 How to use
