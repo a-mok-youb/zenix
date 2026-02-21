@@ -41,7 +41,7 @@ add file **zenx.config.zon** in your project folder
 >```
 ---
 
-# Using Guide
+# Example Guide
 
 ```bash
 const std = @import("std");
