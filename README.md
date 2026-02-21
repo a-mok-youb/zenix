@@ -2,11 +2,12 @@
 
 ⚠️ This project is under active development and not ready for production use.
 
-
 # Installation Guide
+
 1️⃣ Add Zenix as a dependency in your build.zig.zon:
- ```bash
- zig fetch --save https://github.com/a-mok-youb/zenix/archive/refs/heads/main.tar.gz
+
+```bash
+zig fetch --save https://github.com/a-mok-youb/zenix/archive/refs/heads/main.tar.gz
 ```
 
 2️⃣ In your build.zig, add the zenix module as a dependency to your program:
@@ -22,7 +23,20 @@
 
 The library tracks Zig master. If you're using a specific version of Zig, use the appropriate branch.
 
-# How to use
+add fille **zenx.config.zon** in your project folder
+
+```
+.{
+    .port = 8080,
+    .paths = .{
+        .pages = "src/pages",
+        .components = "src/components",
+        .layouts = "src/layouts",
+    },
+}
+```
+
+How to use
 
 ```bash
 const std = @import("std");
@@ -32,12 +46,8 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
-
-    var app = Zenix.init(allocator, .{
-        .pages = "pages",
-        .components = "components",
-        .layouts = "layouts",
-    });
+    const cfg = try Zenix.config(allocator);
+    var app = try Zenix.init(allocator);
 
     const html = try app.Html(.{ .pagePath = "index", .title = "Home Page", .data = &.{
         .{ .key = "{{title}}", .value = "Welcome to Zenix!" },
@@ -63,15 +73,16 @@ pub fn main() !void {
 
     const allocator = gpa.allocator();
 
-    var handler = Handler{ .allocator = allocator, .zenix = Zenix.init(allocator, .{
-        .pages = "src/pages",
-        .components = "src/components",
-        .layouts = "src/layouts",
-    }) };
+    const cfg = try Zenix.config(allocator);
+
+    var handler = Handler{
+        .allocator = allocator,
+        .zenix = try Zenix.init(allocator),
+    };
 
     var server = try httpz.Server(*Handler).init(
         allocator,
-        .{ .port = 8801 },
+        .{ .port = cfg.port },
         &handler,
     );
     defer server.deinit();
@@ -81,7 +92,7 @@ pub fn main() !void {
     router.get("/", index, .{});
     router.get("/error", @"error", .{});
 
-    std.debug.print("listening http://localhost:{d}/\n", .{8801});
+    std.debug.print("listening http://localhost:{d}/\n", .{cfg.port});
     try server.listen();
 }
 

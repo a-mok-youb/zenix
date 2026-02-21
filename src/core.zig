@@ -2,6 +2,7 @@ const std = @import("std");
 const structs = @import("structs.zig");
 const render = @import("render.zig");
 
+const zenx_config = structs.zenx_config;
 const Paths = structs.Paths;
 const Data = structs.Data;
 const Page = structs.Page;
@@ -11,10 +12,31 @@ pub const Zenix = struct {
     allocator: std.mem.Allocator,
     paths: Paths,
 
-    pub fn init(allocator: std.mem.Allocator, paths: Paths) Zenix {
-        return .{ .allocator = allocator, .paths = paths };
+    pub fn init(allocator: std.mem.Allocator) !Zenix {
+        const cfg = try Zenix.config(allocator);
+        return .{ .allocator = allocator, .paths = cfg.paths };
     }
 
+    pub fn config(allocator: std.mem.Allocator) !zenx_config {
+        const file_content = try std.fs.cwd().readFileAllocOptions(
+            allocator,
+            "zenx.config.zon",
+            1024 * 10,
+            null,
+            .@"1",
+            0,
+        );
+
+        defer allocator.free(file_content);
+
+        return try std.zon.parse.fromSlice(
+            zenx_config,
+            allocator,
+            file_content,
+            null,
+            .{},
+        );
+    }
     pub fn Html(self: *Zenix, page: Page) ![]const u8 {
         const page_path = try std.fmt.allocPrint(self.allocator, "{s}/{s}.html", .{ self.paths.pages, page.pagePath });
         defer self.allocator.free(page_path);

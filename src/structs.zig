@@ -1,9 +1,15 @@
 const std = @import("std");
 //
+
 pub const Paths = struct {
-    pages: []const u8,
-    components: []const u8,
-    layouts: []const u8,
+    pages: [:0]const u8,
+    components: [:0]const u8,
+    layouts: [:0]const u8,
+};
+
+pub const zenx_config = struct {
+    port: u16,
+    paths: Paths,
 };
 
 pub const Data = struct {
