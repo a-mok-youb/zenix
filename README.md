@@ -40,7 +40,8 @@ add file **zenx.config.zon** in your project folder
 >}
 >```
 ---
-How to use
+
+# Using Guide
 
 ```bash
 const std = @import("std");
