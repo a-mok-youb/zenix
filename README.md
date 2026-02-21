@@ -12,19 +12,20 @@ zig fetch --save https://github.com/a-mok-youb/zenix/archive/refs/heads/main.tar
 
 2️⃣ In your build.zig, add the zenix module as a dependency to your program:
 
-```bash
- const zenix = b.dependency("zenix", .{
-    .target = target,
-    .optimize = optimize,
-  });
-
-  exe.root_module.addImport("zenix", zenix.module("zenix"));
-```
+> [!NOTE] add this code in build.zig file
+>```bash
+> const zenix = b.dependency("zenix", .{
+>    .target = target,
+>    .optimize = optimize,
+>  });
+>
+>  exe.root_module.addImport("zenix", zenix.module("zenix"));
+>```
 
 The library tracks Zig master. If you're using a specific version of Zig, use the appropriate branch.
 
-add fille **zenx.config.zon** in your project folder
-> [!NOTE]
+add file **zenx.config.zon** in your project folder
+> [!NOTE] **zenx.config.zon**
 >```bash
 >.{
 >    .port = 8080,
