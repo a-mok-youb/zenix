@@ -13,7 +13,7 @@
 
 2️⃣ In your build.zig, add the zenix module as a dependency to your program:
 
-> [!TIP]
+> [!WARNING] Cuidado
 >add this code in **build.zig** file
 >```bash
 > const zenix = b.dependency("zenix", .{
