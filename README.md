@@ -6,7 +6,7 @@
 
 1️⃣ Add Zenix as a dependency in your build.zig.zon:
 
->[!WARNING [Cuidado]]
+>[!TIP]
 >```bash
 >zig fetch --save >https://github.com/a-mok-youb/zenix/archive/refs/heads/main.tar.gz
 >```
@@ -27,7 +27,8 @@
 The library tracks Zig master. If you're using a specific version of Zig, use the appropriate branch.
 
 add file **zenx.config.zon** in your project folder
-> [!NOTE] **zenx.config.zon**
+> [!TIP]
+>**zenx.config.zon**
 >```bash
 >.{
 >    .port = 8080,
