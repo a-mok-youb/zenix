@@ -39,7 +39,7 @@ add file **zenx.config.zon** in your project folder
 >    },
 >}
 >```
----
+
 
 # Example Guide
 
