@@ -14,7 +14,7 @@
 2️⃣ In your build.zig, add the zenix module as a dependency to your program:
 
 > [!TIP]
->add this code in **build.zig** file
+> **build.zig**
 >```bash
 > const zenix = b.dependency("zenix", .{
 >    .target = target,
@@ -28,7 +28,7 @@ The library tracks Zig master. If you're using a specific version of Zig, use th
 
 add file **zenx.config.zon** in your project folder
 > [!TIP]
->**zenx.config.zon**
+> **zenx.config.zon**
 >```bash
 >.{
 >    .port = 8080,
