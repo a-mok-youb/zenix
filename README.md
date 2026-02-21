@@ -6,13 +6,14 @@
 
 1️⃣ Add Zenix as a dependency in your build.zig.zon:
 
-```bash
-zig fetch --save https://github.com/a-mok-youb/zenix/archive/refs/heads/main.tar.gz
-```
+> [!NOTE]
+>```bash
+>zig fetch --save >https://github.com/a-mok-youb/zenix/archive/refs/heads/main.tar.gz
+>```
 
 2️⃣ In your build.zig, add the zenix module as a dependency to your program:
 
-> [!NOTE] add this code in build.zig file
+> [!NOTE] add this code in **build.zig** file
 >```bash
 > const zenix = b.dependency("zenix", .{
 >    .target = target,
