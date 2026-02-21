@@ -6,7 +6,7 @@
 
 1️⃣ Add Zenix as a dependency in your build.zig.zon:
 
->[!WARNING] Cuidado
+>[!WARNING [Cuidado]]
 >```bash
 >zig fetch --save >https://github.com/a-mok-youb/zenix/archive/refs/heads/main.tar.gz
 >```
