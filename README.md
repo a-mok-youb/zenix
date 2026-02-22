@@ -6,37 +6,42 @@
 
 1️⃣ Add Zenix as a dependency in your build.zig.zon:
 
-```bash
-zig fetch --save https://github.com/a-mok-youb/zenix/archive/refs/heads/main.tar.gz
-```
+>[!TIP]
+>```bash
+>zig fetch --save https://github.com/a-mok-youb/zenix/archive/refs/heads/main.tar.gz
+>```
 
 2️⃣ In your build.zig, add the zenix module as a dependency to your program:
 
-```bash
- const zenix = b.dependency("zenix", .{
-    .target = target,
-    .optimize = optimize,
-  });
-
-  exe.root_module.addImport("zenix", zenix.module("zenix"));
-```
+> [!TIP]
+> **build.zig**
+>```bash
+> const zenix = b.dependency("zenix", .{
+>    .target = target,
+>    .optimize = optimize,
+>  });
+>
+>  exe.root_module.addImport("zenix", zenix.module("zenix"));
+>```
 
 The library tracks Zig master. If you're using a specific version of Zig, use the appropriate branch.
 
-add fille **zenx.config.zon** in your project folder
+add file **zenx.config.zon** in your project folder
+> [!TIP]
+> **zenx.config.zon**
+>```bash
+>.{
+>    .port = 8080,
+>    .paths = .{
+>        .pages = "src/pages",
+>        .components = "src/components",
+>        .layouts = "src/layouts",
+>    },
+>}
+>```
 
-```
-.{
-    .port = 8080,
-    .paths = .{
-        .pages = "src/pages",
-        .components = "src/components",
-        .layouts = "src/layouts",
-    },
-}
-```
 
-How to use
+# Example Guide
 
 ```bash
 const std = @import("std");
