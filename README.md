@@ -4,14 +4,15 @@
 
 
 
->| Feature           | Supported |
->| ----------------- | --------- |
->| components        | ✅        |
->| props             | ✅        |
->| layouts           | ✅        |
->| default slots     | ✅        |
->| named slots       | ✅        |
->| nested components | ✅        |
+>| Feature           | Props | Slots | Nested |
+>| ----------------- | ----- | ----- | ------ |
+>| components        | ✅    | ✅    | ✅     |
+>| layouts           | ✅    | ✅    | ✅     |
+
+>| slots     | Default | Named |
+>| --------- | ------- | ----- |
+>| ✅        | ✅      | ✅    |
+
 
 # Installation Guide
 
@@ -46,7 +47,10 @@ add file **zenx.config.zon** in your project folder
 >
 > ```bash
 > .{
->    .port = 8080,
+>    .server = .{
+>        .port = 3000,
+>        .address = "127.0.0.1",
+>    },
 >    .paths = .{
 >        .pages = "src/pages",
 >        .components = "src/components",
@@ -71,13 +75,10 @@ pub fn main() !void {
 
     _ = try app.config.Zon();
 
-    const html = try app.Page(200, .{
-        .pagePath = "index",
-        .title = "Home Page",
-        .data = &.{
-            .{ .key = "{{title}}", .value = "Welcome to Zenix!" },
-            .{ .key = "{{content}}", .value = "This is a sample page rendered with Zenix." },
-        },
+    const html = try app.Page(200, "index", &.{
+            .{ .key = "title", .value = "Welcome to Zenix!" },
+            .{ .key = "content", .value = "This is a sample page rendered with Zenix." },
+        
     });
 
     std.debug.print("{s}\n", .{html});
@@ -133,14 +134,11 @@ const Handler = struct {
 
     pub fn notFound(self: *Handler, _: *httpz.Request, res: *httpz.Response) !void {
         res.status = 404;
-        const body = try self.app.Page(404, .{
-            .pagePath = "error",
-            .title = "Page Not Found",
-            .data = &.{
-                .{ .key = "{{status}}", .value = "404" },
-                .{ .key = "{{message}}", .value = "page not found" },
+        const body = try self.app.Page(404, "error", &.{
+                .{ .key = "status", .value = "404" },
+                .{ .key = "message", .value = "page not found" },
             },
-        });
+        );
         res.body = body;
     }
 
@@ -152,13 +150,9 @@ const Handler = struct {
     ) void {
         std.debug.print("uncaught http error at {s}: {}\n", .{ req.url.path, err });
         res.status = 500;
-        if (self.app.Page(500, .{
-            .pagePath = "error",
-            .title = "Internal Server Error",
-            .data = &.{
-                .{ .key = "{{status}}", .value = "500" },
-                .{ .key = "{{message}}", .value = "Internal Server Error" },
-            },
+        if (self.app.Page(500, "error", &.{
+                .{ .key = "status", .value = "500" },
+                .{ .key = "message", .value = "Internal Server Error" },
         })) |body| {
             res.body = body;
         } else |_| {
@@ -169,15 +163,11 @@ const Handler = struct {
 
 fn index(self: *Handler, _: *httpz.Request, res: *httpz.Response) !void {
     res.status = 200;
-    const body = try self.app.Page(200, .{
-        .pagePath = "index",
-        .title = "index",
-        .data = &.{
-            .{ .key = "{{username}}", .value = "ayoub" },
-            .{ .key = "{{items}}", .value = "<li>Rust</li><li>Zig</li>" },
-            .{ .key = "{{title}}", .value = "Card Title" },
-            .{ .key = "{{description}}", .value = "product description" },
-        },
+    const body = try self.app.Page(200, .{"index", &.{
+            .{ .key = "username", .value = "ayoub" },
+            .{ .key = "items", .value = "<li>Rust</li><li>Zig</li>" },
+            .{ .key = "title", .value = "Card Title" },
+            .{ .key = "description", .value = "product description" },
     });
     res.body = body;
 }
