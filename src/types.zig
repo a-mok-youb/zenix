@@ -3,7 +3,7 @@ pub const Env = enum {
     production,
 };
 
-pub const zenx_config_zon = struct {
+pub const config_zon = struct {
     server: struct {
         port: u16 = 3000,
         address: []const u8 = "127.0.0.1",

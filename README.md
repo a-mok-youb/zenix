@@ -1,4 +1,4 @@
-# Zenx
+# Zpage
 
 ⚠️ This project is under active development and not ready for production use.
 
@@ -16,7 +16,7 @@
 
 # Installation Guide
 
-1️⃣ Add Zenix as a dependency in your build.zig.zon:
+1️⃣ Add zpage as a dependency in your build.zig.zon:
 
 > [!TIP]
 >
@@ -30,12 +30,12 @@
 > **build.zig**
 >
 > ```bash
-> const zenix = b.dependency("zenix", .{
+> const zenix = b.dependency("zpage", .{
 >    .target = target,
 >    .optimize = optimize,
 >  });
 >
->  exe.root_module.addImport("zenix", zenix.module("zenix"));
+>  exe.root_module.addImport("zpage", zpage.module("zpage"));
 > ```
 
 The library tracks Zig master. If you're using a specific version of Zig, use the appropriate branch.
@@ -43,7 +43,7 @@ The library tracks Zig master. If you're using a specific version of Zig, use th
 add file **zenx.config.zon** in your project folder
 
 > [!TIP]
-> **zenx.config.zon**
+> **zpage.config.zon**
 >
 > ```bash
 > .{
@@ -63,21 +63,21 @@ add file **zenx.config.zon** in your project folder
 
 ```bash
 const std = @import("std");
-const Zenix = @import("zenix").Zenix;
+const Zpage = @import("zpage ").Zpage;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    var app = try Zenix.init(allocator);
+    var app = try Zpage.init(allocator);
     defer app.deinit();
 
     _ = try app.config.Zon();
 
     const html = try app.Page(200, "index", &.{
-            .{ .key = "title", .value = "Welcome to Zenix!" },
-            .{ .key = "content", .value = "This is a sample page rendered with Zenix." },
+            .{ .key = "title", .value = "Welcome to Zpage!" },
+            .{ .key = "content", .value = "This is a sample page rendered with Zpage." },
         
     });
 
@@ -91,16 +91,16 @@ pub fn main() !void {
 ```bash
 const std = @import("std");
 const httpz = @import("httpz");
-const zenix = @import("zenix");
+const Zpage = @import("zpage ").Zpage;
 
-const Zenix = zenix.Zenix;
+
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
 
     const allocator = gpa.allocator();
-    var app = try Zenix.init(allocator);
+    var app = try Zpage.init(allocator);
     defer app.deinit();
 
     const cfg = try app.config.Zon();
@@ -129,7 +129,7 @@ pub fn main() !void {
 
 const Handler = struct {
     allocator: std.mem.Allocator,
-    app: *Zenix,
+    app: *Zpage,
     _hits: usize = 0,
 
     pub fn notFound(self: *Handler, _: *httpz.Request, res: *httpz.Response) !void {

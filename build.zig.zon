@@ -1,8 +1,8 @@
 .{
-    .name = .zenix,
+    .name = .Zpage,
     .version = "0.0.4",
 
-    .fingerprint = 0xd110c78857377942,
+    .fingerprint = 0x81cf494ba0e99105,
     .minimum_zig_version = "0.15.1",
     .dependencies = .{},
     .paths = .{
