@@ -1,1 +1,3 @@
-pub const Zenix = @import("core.zig").Zenix;
+const std = @import("std");
+const core = @import("core.zig");
+pub const Zenix = core.Zenix;

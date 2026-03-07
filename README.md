@@ -1,45 +1,59 @@
-# Zenix
+# Zenx
 
 ⚠️ This project is under active development and not ready for production use.
+
+
+
+>| Feature           | Supported |
+>| ----------------- | --------- |
+>| components        | ✅        |
+>| props             | ✅        |
+>| layouts           | ✅        |
+>| default slots     | ✅        |
+>| named slots       | ✅        |
+>| nested components | ✅        |
 
 # Installation Guide
 
 1️⃣ Add Zenix as a dependency in your build.zig.zon:
 
->[!TIP]
->```bash
->zig fetch --save https://github.com/a-mok-youb/zenix/archive/refs/heads/main.tar.gz
->```
+> [!TIP]
+>
+> ```bash
+> zig fetch --save https://github.com/a-mok-youb/zenix/archive/refs/heads/main.tar.gz
+> ```
 
 2️⃣ In your build.zig, add the zenix module as a dependency to your program:
 
 > [!TIP]
 > **build.zig**
->```bash
+>
+> ```bash
 > const zenix = b.dependency("zenix", .{
 >    .target = target,
 >    .optimize = optimize,
 >  });
 >
 >  exe.root_module.addImport("zenix", zenix.module("zenix"));
->```
+> ```
 
 The library tracks Zig master. If you're using a specific version of Zig, use the appropriate branch.
 
 add file **zenx.config.zon** in your project folder
+
 > [!TIP]
 > **zenx.config.zon**
->```bash
->.{
+>
+> ```bash
+> .{
 >    .port = 8080,
 >    .paths = .{
 >        .pages = "src/pages",
 >        .components = "src/components",
 >        .layouts = "src/layouts",
 >    },
->}
->```
-
+> }
+> ```
 
 # Example Guide
 
@@ -51,18 +65,24 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
-    const cfg = try Zenix.config(allocator);
+
     var app = try Zenix.init(allocator);
+    defer app.deinit();
 
-    const html = try app.Html(.{ .pagePath = "index", .title = "Home Page", .data = &.{
-        .{ .key = "{{title}}", .value = "Welcome to Zenix!" },
-        .{ .key = "{{content}}", .value = "This is a sample page rendered with Zenix." },
-    } });
+    _ = try app.config.Zon();
 
-    defer allocator.free(html);
+    const html = try app.Page(200, .{
+        .pagePath = "index",
+        .title = "Home Page",
+        .data = &.{
+            .{ .key = "{{title}}", .value = "Welcome to Zenix!" },
+            .{ .key = "{{content}}", .value = "This is a sample page rendered with Zenix." },
+        },
+    });
 
     std.debug.print("{s}\n", .{html});
 }
+
 ```
 
 # whit [http.zig](https://github.com/karlseguin/http.zig)
@@ -70,26 +90,31 @@ pub fn main() !void {
 ```bash
 const std = @import("std");
 const httpz = @import("httpz");
-const Zenix = @import("zenix").Zenix;
+const zenix = @import("zenix");
+
+const Zenix = zenix.Zenix;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
 
     const allocator = gpa.allocator();
+    var app = try Zenix.init(allocator);
+    defer app.deinit();
 
-    const cfg = try Zenix.config(allocator);
+    const cfg = try app.config.Zon();
+
+    const server_config = httpz.Config{
+        .port = cfg.server.port,
+        .address = cfg.server.address,
+    };
 
     var handler = Handler{
         .allocator = allocator,
-        .zenix = try Zenix.init(allocator),
+        .app = app,
     };
 
-    var server = try httpz.Server(*Handler).init(
-        allocator,
-        .{ .port = cfg.port },
-        &handler,
-    );
+    var server = try httpz.Server(*Handler).init(allocator, server_config, &handler);
     defer server.deinit();
     defer server.stop();
 
@@ -97,28 +122,25 @@ pub fn main() !void {
     router.get("/", index, .{});
     router.get("/error", @"error", .{});
 
-    std.debug.print("listening http://localhost:{d}/\n", .{cfg.port});
+    std.debug.print("listening http://localhost:{d}/\n", .{cfg.server.port});
     try server.listen();
 }
 
 const Handler = struct {
     allocator: std.mem.Allocator,
-    zenix: Zenix,
-
+    app: *Zenix,
     _hits: usize = 0,
 
     pub fn notFound(self: *Handler, _: *httpz.Request, res: *httpz.Response) !void {
         res.status = 404;
-
-        const body = try self.zenix.Error(.{
-            .status = 404,
-            .errorPagePath = "error",
+        const body = try self.app.Page(404, .{
+            .pagePath = "error",
+            .title = "Page Not Found",
             .data = &.{
                 .{ .key = "{{status}}", .value = "404" },
                 .{ .key = "{{message}}", .value = "page not found" },
             },
         });
-
         res.body = body;
     }
 
@@ -130,10 +152,9 @@ const Handler = struct {
     ) void {
         std.debug.print("uncaught http error at {s}: {}\n", .{ req.url.path, err });
         res.status = 500;
-
-        if (self.zenix.Error(.{
-            .status = 500,
-            .errorPagePath = "error",
+        if (self.app.Page(500, .{
+            .pagePath = "error",
+            .title = "Internal Server Error",
             .data = &.{
                 .{ .key = "{{status}}", .value = "500" },
                 .{ .key = "{{message}}", .value = "Internal Server Error" },
@@ -147,7 +168,8 @@ const Handler = struct {
 };
 
 fn index(self: *Handler, _: *httpz.Request, res: *httpz.Response) !void {
-    const body = try self.zenix.Html(.{
+    res.status = 200;
+    const body = try self.app.Page(200, .{
         .pagePath = "index",
         .title = "index",
         .data = &.{
@@ -157,13 +179,12 @@ fn index(self: *Handler, _: *httpz.Request, res: *httpz.Response) !void {
             .{ .key = "{{description}}", .value = "product description" },
         },
     });
-
     res.body = body;
 }
-
 fn @"error"(_: *Handler, _: *httpz.Request, _: *httpz.Response) !void {
     return error.ActionError;
 }
+
 
 
 ```

@@ -3,7 +3,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const zenix_module = b.addModule("zenix", .{
+    const zenx_module = b.addModule("zenix", .{
         .root_source_file = b.path("src/zenix.zig"),
         .target = target,
         .optimize = optimize,
@@ -11,6 +11,6 @@ pub fn build(b: *std.Build) void {
 
     {
         const options = b.addOptions();
-        zenix_module.addOptions("build", options);
+        zenx_module.addOptions("build", options);
     }
 }

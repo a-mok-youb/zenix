@@ -1,7 +1,5 @@
-<<<<<<< HEAD
-.zig-cache/
-=======
+
 .zig-cache/
 zig-out/
 *.o
->>>>>>> 7146dce1b55327ef894260dcc6335754de040090
+src/config

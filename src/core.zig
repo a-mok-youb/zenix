@@ -1,62 +1,57 @@
 const std = @import("std");
-const structs = @import("structs.zig");
+const types = @import("types.zig");
 const render = @import("render.zig");
-
-const zenx_config = structs.zenx_config;
-const Paths = structs.Paths;
-const Data = structs.Data;
-const Page = structs.Page;
-const ErrorPage = structs.ErrorPage;
+const config = @import("config.zig").config;
 
 pub const Zenix = struct {
     allocator: std.mem.Allocator,
-    paths: Paths,
+    zenx_config_zon: ?types.zenx_config_zon = null,
+    config: config,
+    component_cache: render.ComponentCache,
 
-    pub fn init(allocator: std.mem.Allocator) !Zenix {
-        const cfg = try Zenix.config(allocator);
-        return .{ .allocator = allocator, .paths = cfg.paths };
+    pub const pageTypes = types.Page;
+
+    const Self = @This();
+
+    pub fn init(allocator: std.mem.Allocator) !*Self {
+        const self = try allocator.create(Zenix);
+
+        self.* = .{
+            .allocator = allocator,
+            .config = undefined,
+            .zenx_config_zon = null,
+            .component_cache = render.ComponentCache.init(allocator),
+        };
+
+        self.config = .{ .zenix = self };
+        return self;
     }
 
-    pub fn config(allocator: std.mem.Allocator) !zenx_config {
-        const file_content = try std.fs.cwd().readFileAllocOptions(
-            allocator,
-            "zenx.config.zon",
-            1024 * 10,
-            null,
-            .@"1",
-            0,
-        );
+    pub fn deinit(self: *Self) void {
+        if (self.zenx_config_zon) |cfg| {
+            std.zon.parse.free(self.allocator, cfg);
+            self.zenx_config_zon = null;
+        }
 
-        defer allocator.free(file_content);
-
-        return try std.zon.parse.fromSlice(
-            zenx_config,
-            allocator,
-            file_content,
-            null,
-            .{},
-        );
-    }
-    pub fn Html(self: *Zenix, page: Page) ![]const u8 {
-        const page_path = try std.fmt.allocPrint(self.allocator, "{s}/{s}.html", .{ self.paths.pages, page.pagePath });
-        defer self.allocator.free(page_path);
-
-        const layout_path = try std.fmt.allocPrint(self.allocator, "{s}/{s}.html", .{ self.paths.layouts, "main_layout" });
-        defer self.allocator.free(layout_path);
-
-        return try render.renderPage(self.allocator, page_path, layout_path, page.title, page.data);
+        self.component_cache.deinit();
+        self.allocator.destroy(self);
     }
 
-    pub fn Error(self: *Zenix, errorPage: ErrorPage) ![]const u8 {
-        const status_str = try std.fmt.allocPrint(self.allocator, "{d}", .{errorPage.status});
+    pub fn Page(self: *Self, status: u16, page: []const u8, data: []const types.Data) ![]const u8 {
+        const cfg = self.zenx_config_zon.?;
+        const paths = cfg.paths;
+
+        const status_str = try std.fmt.allocPrint(self.allocator, "{d}", .{status});
         defer self.allocator.free(status_str);
 
-        const page_path = try std.fmt.allocPrint(self.allocator, "{s}/{s}.html", .{ self.paths.pages, errorPage.errorPagePath });
+        const page_path = try std.fmt.allocPrint(self.allocator, "{s}/{s}.html", .{ paths.pages, page });
         defer self.allocator.free(page_path);
 
-        const layout_path = try std.fmt.allocPrint(self.allocator, "{s}/{s}.html", .{ self.paths.layouts, "main_layout" });
-        defer self.allocator.free(layout_path);
-
-        return try render.renderPage(self.allocator, page_path, layout_path, status_str, errorPage.data);
+        return try render.renderPage(
+            self.allocator,
+            &self.component_cache,
+            page_path,
+            data,
+        );
     }
 };
