@@ -1,6 +1,6 @@
 .{
     .name = .Zpage,
-    .version = "0.0.4",
+    .version = "0.0.1",
 
     .fingerprint = 0x81cf494ba0e99105,
     .minimum_zig_version = "0.15.1",
