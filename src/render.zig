@@ -124,21 +124,18 @@ fn renderIf(allocator: std.mem.Allocator, input: []const u8, data: []const Data)
 
         const endif_pos = std.mem.indexOfPos(u8, result, if_tag_end, endif_tag) orelse break;
 
-        // هل يوجد {{#else}} بين {{#if}} و {{/if}}؟
         const else_pos = blk: {
             const ep = std.mem.indexOfPos(u8, result, if_tag_end, else_tag) orelse break :blk null;
             if (ep < endif_pos) break :blk ep;
             break :blk null;
         };
 
-        // تحقق من قيمة الـ key
         const key_token = try std.fmt.allocPrint(allocator, "{{{{{s}}}}}", .{key_name});
         defer allocator.free(key_token);
 
         const is_true = blk: {
             for (data) |d| {
                 if (std.mem.eql(u8, d.key, key_token)) {
-                    // فارغ أو "false" أو "0" = false
                     if (d.value.len == 0) break :blk false;
                     if (std.mem.eql(u8, d.value, "false")) break :blk false;
                     if (std.mem.eql(u8, d.value, "0")) break :blk false;
@@ -176,7 +173,6 @@ fn renderIf(allocator: std.mem.Allocator, input: []const u8, data: []const Data)
 
 // ─── Each ────────────────────────────────────────────────────────────────────
 
-// parse بسيط لـ JSON array: [{"key":"val",...},...]
 fn parseJsonArray(allocator: std.mem.Allocator, input: []const u8) !std.ArrayList(std.StringHashMap([]const u8)) {
     var list = try std.ArrayList(std.StringHashMap([]const u8)).initCapacity(allocator, 4);
 
@@ -221,6 +217,65 @@ fn parseJsonArray(allocator: std.mem.Allocator, input: []const u8) !std.ArrayLis
     return list;
 }
 
+// ✅ إيجاد نهاية {{/each}} المطابقة مع دعم nested
+fn findEachEnd(input: []const u8, start: usize) ?usize {
+    const end_tag = "{{/each}}";
+    var depth: usize = 1;
+    var i = start;
+    while (i < input.len) {
+        if (std.mem.startsWith(u8, input[i..], "{{#each ")) {
+            depth += 1;
+            i += 8;
+        } else if (std.mem.startsWith(u8, input[i..], end_tag)) {
+            depth -= 1;
+            if (depth == 0) return i;
+            i += end_tag.len;
+        } else {
+            i += 1;
+        }
+    }
+    return null;
+}
+
+// ✅ استبدل tokens في الـ block لكن تجاهل محتوى الـ nested {{#each}}
+fn templateOutsideNested(
+    allocator: std.mem.Allocator,
+    block: []const u8,
+    item_data: []const Data,
+) anyerror![]u8 {
+    var out = try std.ArrayList(u8).initCapacity(allocator, block.len);
+    defer out.deinit(allocator);
+
+    var i: usize = 0;
+    while (i < block.len) {
+        if (std.mem.startsWith(u8, block[i..], "{{#each ")) {
+            const each_key_end = std.mem.indexOfPos(u8, block, i + 8, "}}") orelse {
+                try out.append(allocator, block[i]);
+                i += 1;
+                continue;
+            };
+            const each_tag_end = each_key_end + 2;
+            const nested_end = findEachEnd(block, each_tag_end) orelse block.len;
+            const full_end = nested_end + "{{/each}}".len;
+
+            // أضف الـ nested block كما هو بدون استبدال
+            try out.appendSlice(allocator, block[i..full_end]);
+            i = full_end;
+            continue;
+        }
+
+        const next_each = std.mem.indexOfPos(u8, block, i, "{{#each ") orelse block.len;
+        const chunk = block[i..next_each];
+
+        const replaced = try Template(allocator, chunk, item_data);
+        defer allocator.free(replaced);
+        try out.appendSlice(allocator, replaced);
+        i = next_each;
+    }
+
+    return out.toOwnedSlice(allocator);
+}
+
 fn renderEach(allocator: std.mem.Allocator, input: []const u8, data: []const Data) anyerror![]u8 {
     var result = try allocator.dupe(u8, input);
 
@@ -231,27 +286,7 @@ fn renderEach(allocator: std.mem.Allocator, input: []const u8, data: []const Dat
         const each_tag_end = each_key_end + 2;
 
         const endeach_tag = "{{/each}}";
-
-        // ✅ ابحث عن {{/each}} المطابق — تجاهل الـ nested
-        var depth: usize = 1;
-        var search_pos = each_tag_end;
-        const endeach_pos_opt: ?usize = blk: {
-            while (search_pos < result.len) {
-                if (std.mem.startsWith(u8, result[search_pos..], "{{#each ")) {
-                    depth += 1;
-                    search_pos += 8;
-                } else if (std.mem.startsWith(u8, result[search_pos..], endeach_tag)) {
-                    depth -= 1;
-                    if (depth == 0) break :blk search_pos;
-                    search_pos += endeach_tag.len;
-                } else {
-                    search_pos += 1;
-                }
-            }
-            break :blk null;
-        };
-        const endeach_pos = endeach_pos_opt orelse break;
-
+        const endeach_pos = findEachEnd(result, each_tag_end) orelse break;
         const block_template = result[each_tag_end..endeach_pos];
 
         const key_token = try std.fmt.allocPrint(allocator, "{{{{{s}}}}}", .{key_name});
@@ -269,6 +304,7 @@ fn renderEach(allocator: std.mem.Allocator, input: []const u8, data: []const Dat
 
         if (value.len > 0) {
             if (std.mem.startsWith(u8, std.mem.trim(u8, value, " \t"), "[{")) {
+                // ─── JSON array ───────────────────────────────────────────
                 var objects = try parseJsonArray(allocator, value);
                 defer {
                     for (objects.items) |*map| map.deinit();
@@ -276,66 +312,48 @@ fn renderEach(allocator: std.mem.Allocator, input: []const u8, data: []const Dat
                 }
 
                 for (objects.items, 0..) |map, idx| {
-                    var item_data = try std.ArrayList(Data).initCapacity(allocator, 8);
-                    defer item_data.deinit(allocator);
+                    var arena = std.heap.ArenaAllocator.init(allocator);
+                    defer arena.deinit();
+                    const a = arena.allocator();
 
-                    const idx_str = try std.fmt.allocPrint(allocator, "{d}", .{idx});
-                    defer allocator.free(idx_str);
-                    try item_data.append(allocator, .{ .key = "{{index}}", .value = idx_str });
-
-                    var allocated_keys = try std.ArrayList([]u8).initCapacity(allocator, 8);
-                    defer {
-                        for (allocated_keys.items) |k| allocator.free(k);
-                        allocated_keys.deinit(allocator);
-                    }
+                    var item_data = try std.ArrayList(Data).initCapacity(a, 8);
+                    const idx_str = try std.fmt.allocPrint(a, "{d}", .{idx});
+                    try item_data.append(a, .{ .key = "{{index}}", .value = idx_str });
 
                     var it = map.iterator();
                     while (it.next()) |entry| {
-                        const item_key = try std.fmt.allocPrint(allocator, "{{{{item.{s}}}}}", .{entry.key_ptr.*});
-                        try allocated_keys.append(allocator, item_key);
-                        try item_data.append(allocator, .{ .key = item_key, .value = entry.value_ptr.* });
+                        // ✅ {{name}} بدلاً من {{item.name}}
+                        const item_key = try std.fmt.allocPrint(a, "{{{{{s}}}}}", .{entry.key_ptr.*});
+                        try item_data.append(a, .{ .key = item_key, .value = entry.value_ptr.* });
                     }
 
-                    // ✅ أضف global_data للـ item_data حتى تعمل nested each
-                    for (data) |d| {
-                        try item_data.append(allocator, .{ .key = d.key, .value = d.value });
-                    }
+                    const rendered = try templateOutsideNested(a, block_template, item_data.items);
+                    const with_nested = try renderDirectives(a, rendered, data);
 
-                    const rendered = try Template(allocator, block_template, item_data.items);
-                    defer allocator.free(rendered);
-
-                    // ✅ طبّق directives على كل block — يحل nested {{#each}}
-                    const with_nested = try renderDirectives(allocator, rendered, data);
-                    defer allocator.free(with_nested);
-
+                    // ✅ انسخ النتيجة للـ main allocator قبل deinit arena
                     try rendered_block.appendSlice(allocator, with_nested);
                 }
             } else {
+                // ─── Comma list ───────────────────────────────────────────
                 var items = std.mem.splitScalar(u8, value, ',');
                 var idx: usize = 0;
                 while (items.next()) |item| {
+                    var arena = std.heap.ArenaAllocator.init(allocator);
+                    defer arena.deinit();
+                    const a = arena.allocator();
+
                     const trimmed_item = std.mem.trim(u8, item, " \t");
-                    const idx_str = try std.fmt.allocPrint(allocator, "{d}", .{idx});
-                    defer allocator.free(idx_str);
+                    const idx_str = try std.fmt.allocPrint(a, "{d}", .{idx});
 
-                    var item_data = try std.ArrayList(Data).initCapacity(allocator, data.len + 2);
-                    defer item_data.deinit(allocator);
+                    const item_data = [_]Data{
+                        .{ .key = "{{item}}", .value = trimmed_item },
+                        .{ .key = "{{index}}", .value = idx_str },
+                    };
 
-                    try item_data.append(allocator, .{ .key = "{{item}}", .value = trimmed_item });
-                    try item_data.append(allocator, .{ .key = "{{index}}", .value = idx_str });
+                    const rendered = try templateOutsideNested(a, block_template, &item_data);
+                    const with_nested = try renderDirectives(a, rendered, data);
 
-                    // ✅ أضف global_data
-                    for (data) |d| {
-                        try item_data.append(allocator, .{ .key = d.key, .value = d.value });
-                    }
-
-                    const rendered = try Template(allocator, block_template, item_data.items);
-                    defer allocator.free(rendered);
-
-                    // ✅ طبّق directives على كل block
-                    const with_nested = try renderDirectives(allocator, rendered, data);
-                    defer allocator.free(with_nested);
-
+                    // ✅ انسخ النتيجة للـ main allocator قبل deinit arena
                     try rendered_block.appendSlice(allocator, with_nested);
                     idx += 1;
                 }
@@ -353,6 +371,7 @@ fn renderEach(allocator: std.mem.Allocator, input: []const u8, data: []const Dat
 
     return result;
 }
+
 // ─── Directives ──────────────────────────────────────────────────────────────
 
 fn renderDirectives(allocator: std.mem.Allocator, input: []const u8, data: []const Data) anyerror![]u8 {
@@ -377,11 +396,15 @@ pub const ComponentCache = struct {
 
     pub fn deinit(self: *ComponentCache) void {
         var it = self.map.iterator();
-        while (it.next()) |entry| self.allocator.free(entry.value_ptr.*);
+        while (it.next()) |entry| {
+            self.allocator.free(entry.key_ptr.*);
+            self.allocator.free(entry.value_ptr.*);
+        }
         self.map.deinit();
     }
 
     pub fn get(self: *ComponentCache, name: []const u8) ![]const u8 {
+        // ✅ تحقق أولاً
         if (self.map.get(name)) |v| return v;
 
         const path = try std.fmt.allocPrint(self.allocator, "src/components/{s}.html", .{name});
@@ -393,11 +416,22 @@ pub const ComponentCache = struct {
                 "<div>Component {s} missing</div>",
                 .{name},
             );
-            try self.map.put(name, missing);
+
+            const owned_name = try self.allocator.dupe(u8, name);
+            self.map.put(owned_name, missing) catch {
+                self.allocator.free(owned_name);
+                self.allocator.free(missing);
+                return error.OutOfMemory;
+            };
             return missing;
         };
 
-        try self.map.put(name, content);
+        const owned_name = try self.allocator.dupe(u8, name);
+        self.map.put(owned_name, content) catch {
+            self.allocator.free(owned_name);
+            self.allocator.free(content);
+            return error.OutOfMemory;
+        };
         return content;
     }
 };
@@ -639,7 +673,6 @@ pub fn ComponentRender(
 
             const templated = try Template(allocator, comp_template, replacements.items);
             defer allocator.free(templated);
-            // ✅ طبّق directives على الـ component
             const with_directives = try renderDirectives(allocator, templated, replacements.items);
             defer allocator.free(with_directives);
             const final = try ComponentRender(allocator, cache, with_directives, global_data);
@@ -705,7 +738,6 @@ pub fn ComponentRender(
 
         const templated = try Template(allocator, comp_template, replacements.items);
         defer allocator.free(templated);
-        // ✅ طبّق directives على الـ component
         const with_directives = try renderDirectives(allocator, templated, replacements.items);
         defer allocator.free(with_directives);
         const final = try ComponentRender(allocator, cache, with_directives, global_data);
@@ -792,7 +824,7 @@ pub fn renderPage(
     const templated = try Template(allocator, rendered, wrapped.items);
     defer allocator.free(templated);
 
-    // 3. ✅ طبّق directives بعد كل الاستبدالات
+    // 3. طبّق directives بعد كل الاستبدالات
     const with_directives = try renderDirectives(allocator, templated, wrapped.items);
     defer allocator.free(with_directives);
 
