@@ -173,45 +173,71 @@ fn renderIf(allocator: std.mem.Allocator, input: []const u8, data: []const Data)
 
 // ─── Each ────────────────────────────────────────────────────────────────────
 
+// ✅ تسوية JSON nested إلى flat keys
+// مثال:
+//   {"user": {"name": "ayoub"}}  →  user.name = "ayoub"
+//   {"tags": ["zig", "web"]}     →  tags.0 = "zig", tags.1 = "web"
+//   {"id": 1}                    →  id = "1"
+fn flattenJson(
+    allocator: std.mem.Allocator,
+    map: *std.StringHashMap([]const u8),
+    prefix: []const u8,
+    value: std.json.Value,
+) !void {
+    switch (value) {
+        .object => |obj| {
+            var it = obj.iterator();
+            while (it.next()) |entry| {
+                const key = if (prefix.len == 0)
+                    try allocator.dupe(u8, entry.key_ptr.*)
+                else
+                    try std.fmt.allocPrint(allocator, "{s}.{s}", .{ prefix, entry.key_ptr.* });
+                defer allocator.free(key);
+                try flattenJson(allocator, map, key, entry.value_ptr.*);
+            }
+        },
+        .array => |arr| {
+            for (arr.items, 0..) |item, idx| {
+                const key = if (prefix.len == 0)
+                    try std.fmt.allocPrint(allocator, "{d}", .{idx})
+                else
+                    try std.fmt.allocPrint(allocator, "{s}.{d}", .{ prefix, idx });
+                defer allocator.free(key);
+                try flattenJson(allocator, map, key, item);
+            }
+        },
+        else => {
+            const key = try allocator.dupe(u8, prefix);
+            errdefer allocator.free(key);
+            const val: []const u8 = switch (value) {
+                .string => |s| try allocator.dupe(u8, s),
+                .integer => |n| try std.fmt.allocPrint(allocator, "{d}", .{n}),
+                .float => |f| try std.fmt.allocPrint(allocator, "{e}", .{f}),
+                .bool => |b| try allocator.dupe(u8, if (b) "true" else "false"),
+                .null => try allocator.dupe(u8, ""),
+                else => try allocator.dupe(u8, ""),
+            };
+            errdefer allocator.free(val);
+            try map.put(key, val);
+        },
+    }
+}
+
 fn parseJsonArray(allocator: std.mem.Allocator, input: []const u8) !std.ArrayList(std.StringHashMap([]const u8)) {
     var list = try std.ArrayList(std.StringHashMap([]const u8)).initCapacity(allocator, 4);
 
-    const trimmed = std.mem.trim(u8, input, " \t\n\r");
-    if (trimmed.len < 2 or trimmed[0] != '[') return list;
+    const parsed = std.json.parseFromSlice(std.json.Value, allocator, input, .{}) catch return list;
+    defer parsed.deinit();
 
-    var i: usize = 1;
-    while (i < trimmed.len) {
-        while (i < trimmed.len and trimmed[i] != '{') : (i += 1) {}
-        if (i >= trimmed.len) break;
+    const array = switch (parsed.value) {
+        .array => |a| a,
+        else => return list,
+    };
 
-        const obj_end = std.mem.indexOfPos(u8, trimmed, i, "}") orelse break;
-        const obj_str = trimmed[i + 1 .. obj_end];
-
+    for (array.items) |item| {
         var map = std.StringHashMap([]const u8).init(allocator);
-
-        var j: usize = 0;
-        while (j < obj_str.len) {
-            while (j < obj_str.len and obj_str[j] != '"') : (j += 1) {}
-            if (j >= obj_str.len) break;
-            j += 1;
-            const key_start = j;
-            while (j < obj_str.len and obj_str[j] != '"') : (j += 1) {}
-            const key = obj_str[key_start..j];
-            j += 1;
-
-            while (j < obj_str.len and obj_str[j] != '"') : (j += 1) {}
-            if (j >= obj_str.len) break;
-            j += 1;
-            const val_start = j;
-            while (j < obj_str.len and obj_str[j] != '"') : (j += 1) {}
-            const val = obj_str[val_start..j];
-            j += 1;
-
-            try map.put(key, val);
-        }
-
+        try flattenJson(allocator, &map, "", item);
         try list.append(allocator, map);
-        i = obj_end + 1;
     }
 
     return list;
@@ -258,7 +284,6 @@ fn templateOutsideNested(
             const nested_end = findEachEnd(block, each_tag_end) orelse block.len;
             const full_end = nested_end + "{{/each}}".len;
 
-            // أضف الـ nested block كما هو بدون استبدال
             try out.appendSlice(allocator, block[i..full_end]);
             i = full_end;
             continue;
@@ -303,11 +328,18 @@ fn renderEach(allocator: std.mem.Allocator, input: []const u8, data: []const Dat
         defer rendered_block.deinit(allocator);
 
         if (value.len > 0) {
-            if (std.mem.startsWith(u8, std.mem.trim(u8, value, " \t"), "[{")) {
+            if (std.mem.startsWith(u8, std.mem.trim(u8, value, " \t"), "[")) {
                 // ─── JSON array ───────────────────────────────────────────
                 var objects = try parseJsonArray(allocator, value);
                 defer {
-                    for (objects.items) |*map| map.deinit();
+                    for (objects.items) |*map| {
+                        var it = map.iterator();
+                        while (it.next()) |entry| {
+                            allocator.free(entry.key_ptr.*);
+                            allocator.free(entry.value_ptr.*);
+                        }
+                        map.deinit();
+                    }
                     objects.deinit(allocator);
                 }
 
@@ -322,15 +354,12 @@ fn renderEach(allocator: std.mem.Allocator, input: []const u8, data: []const Dat
 
                     var it = map.iterator();
                     while (it.next()) |entry| {
-                        // ✅ {{name}} بدلاً من {{item.name}}
                         const item_key = try std.fmt.allocPrint(a, "{{{{{s}}}}}", .{entry.key_ptr.*});
                         try item_data.append(a, .{ .key = item_key, .value = entry.value_ptr.* });
                     }
 
                     const rendered = try templateOutsideNested(a, block_template, item_data.items);
                     const with_nested = try renderDirectives(a, rendered, data);
-
-                    // ✅ انسخ النتيجة للـ main allocator قبل deinit arena
                     try rendered_block.appendSlice(allocator, with_nested);
                 }
             } else {
@@ -352,8 +381,6 @@ fn renderEach(allocator: std.mem.Allocator, input: []const u8, data: []const Dat
 
                     const rendered = try templateOutsideNested(a, block_template, &item_data);
                     const with_nested = try renderDirectives(a, rendered, data);
-
-                    // ✅ انسخ النتيجة للـ main allocator قبل deinit arena
                     try rendered_block.appendSlice(allocator, with_nested);
                     idx += 1;
                 }
@@ -404,7 +431,6 @@ pub const ComponentCache = struct {
     }
 
     pub fn get(self: *ComponentCache, name: []const u8) ![]const u8 {
-        // ✅ تحقق أولاً
         if (self.map.get(name)) |v| return v;
 
         const path = try std.fmt.allocPrint(self.allocator, "src/components/{s}.html", .{name});
@@ -416,7 +442,6 @@ pub const ComponentCache = struct {
                 "<div>Component {s} missing</div>",
                 .{name},
             );
-
             const owned_name = try self.allocator.dupe(u8, name);
             self.map.put(owned_name, missing) catch {
                 self.allocator.free(owned_name);
@@ -816,22 +841,17 @@ pub fn renderPage(
         try wrapped.append(allocator, .{ .key = wk, .value = d.value });
     }
 
-    // 1. render components أولاً
     const rendered = try ComponentRender(allocator, cache, with_layout, wrapped.items);
     defer allocator.free(rendered);
 
-    // 2. استبدل global tokens
     const templated = try Template(allocator, rendered, wrapped.items);
     defer allocator.free(templated);
 
-    // 3. طبّق directives بعد كل الاستبدالات
     const with_directives = try renderDirectives(allocator, templated, wrapped.items);
     defer allocator.free(with_directives);
 
-    // 4. امسح tokens غير محلولة
     const cleared = try clearUnresolvedTokens(allocator, with_directives);
     defer allocator.free(cleared);
 
-    // 5. احذف tags فارغة
     return try removeEmptyTags(allocator, cleared);
 }
